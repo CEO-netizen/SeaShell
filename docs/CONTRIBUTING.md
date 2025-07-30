@@ -4,10 +4,6 @@ Thanks for checking out SeaShell — a custom C shell project!
 
 ---
 
-## 🚨 Help Wanted: Build Errors
-
-Right now, SeaShell has **build issues** that I haven’t been able to fix on my own. These errors are related to **unknown files**, missing dependencies, or compiler errors that I haven’t tracked down yet.
-
 If you're experienced with:
 - C/C++ build systems
 - Debugging `gcc` or `make` errors
@@ -23,4 +19,15 @@ If you're experienced with:
   ```sh
   make
 ```
-> If there are any errors please fix them to the best of your ability and submit a pull request.
+> If there are any errors please to the do best you can and submit a pull request.
+
+---
+
+## Recent Improvements
+
+- Improved argument parsing to support quoted strings (single and double quotes).
+- Support for escaped quotes inside quoted strings.
+- Error handling for unmatched quotes during command parsing.
+- These improvements allow more complex commands with spaces and quotes to be parsed correctly.
+
+Please test these features thoroughly when contributing further changes.

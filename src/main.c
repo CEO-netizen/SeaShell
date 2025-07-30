@@ -19,6 +19,7 @@
 int check_sshlrc();
 void create_sshlrc_menu();
 void load_aliases_from_sshlrc();
+void free_args_array_only(char **args);
 void free_args(char **args);
 char **expand_aliases(char **args);
 void update_prompt();
@@ -33,6 +34,8 @@ extern void set_custom_ps1(const char *ps1);
 extern const char *get_custom_ps1();
 extern void free_custom_ps1();
 
+#include "loop.h"
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -41,20 +44,9 @@ int main(int argc, char **argv) {
         create_sshlrc_menu();
     } else {
         load_aliases_from_sshlrc();
-        // Removed bash sourcing of .sshlrc because custom alias syntax is incompatible
-        // SeaShell handles alias loading internally
-        /*
-        const char *home = getenv("HOME");
-        if (home) {
-            char command[2048];
-            snprintf(command, sizeof(command), "bash --rcfile %s/.sshlrc -i -c exit", home);
-            int ret = system(command);
-            if (ret == -1) {
-                fprintf(stderr, "SeaShell: Failed to source .sshlrc\n");
-            }
-        }
-        */
     }
+
+    shell_loop();
 
     free_aliases();
     free_custom_ps1();
@@ -119,7 +111,6 @@ void create_sshlrc_menu() {
     }
 
     if (choice == 0) {
-        // Create default .sshlrc by copying from project .sshlrc file
         const char *home = getenv("HOME");
         if (home) {
             char src_path[1024];
@@ -156,58 +147,32 @@ void create_sshlrc_menu() {
     endwin();
 }
 
-
 char **expand_aliases(char **args) {
     printf("expand_aliases called\n");
     char *alias_command = find_alias(args[0]);
     if (!alias_command) {
         printf("No alias found for %s\n", args[0]);
-        // Duplicate original args to ensure safe freeing
-        int orig_len = 0;
-        while (args[orig_len] != NULL) orig_len++;
-
-        char **new_args = malloc((orig_len + 1) * sizeof(char *));
-        if (!new_args) {
-            fprintf(stderr, "SeaShell: allocation error\n");
-            exit(EXIT_FAILURE);
-        }
-
-        for (int i = 0; i < orig_len; i++) {
-            new_args[i] = strdup(args[i]);
-            if (!new_args[i]) {
-                fprintf(stderr, "SeaShell: strdup failed\n");
-                for (int j = 0; j < i; j++) {
-                    free(new_args[j]);
-                }
-                free(new_args);
-                exit(EXIT_FAILURE);
-            }
-        }
-        new_args[orig_len] = NULL;
-        return new_args;
+        return args;
     }
     printf("Alias found for %s: %s\n", args[0], alias_command);
-    // Parse alias command into args
     char *copy = strdup(alias_command);
     if (!copy) {
         fprintf(stderr, "SeaShell: strdup failed\n");
         exit(EXIT_FAILURE);
     }
     char **alias_args = parse_line(copy);
-    // Do not free alias_args strings because they point into copy buffer
-    // Only free the alias_args array pointer
     int alias_len = 0;
     while (alias_args[alias_len] != NULL) alias_len++;
     int orig_len = 0;
     while (args[orig_len] != NULL) orig_len++;
 
-    int extra_args = orig_len - 1; // skip alias name
+    int extra_args = orig_len - 1;
     int total = alias_len + extra_args;
 
     char **new_args = malloc((total + 1) * sizeof(char *));
     if (!new_args) {
         fprintf(stderr, "SeaShell: allocation error\n");
-        free_args(alias_args);
+        free_args_array_only(alias_args);
         free(copy);
         exit(EXIT_FAILURE);
     }
@@ -220,7 +185,7 @@ char **expand_aliases(char **args) {
                 free(new_args[j]);
             }
             free(new_args);
-            free_args(alias_args);
+            free_args_array_only(alias_args);
             free(copy);
             exit(EXIT_FAILURE);
         }
@@ -233,14 +198,14 @@ char **expand_aliases(char **args) {
                 free(new_args[j]);
             }
             free(new_args);
-            free_args(alias_args);
+            free_args_array_only(alias_args);
             free(copy);
             exit(EXIT_FAILURE);
         }
     }
     new_args[total] = NULL;
 
-    free_args(alias_args);
+    free_args_array_only(alias_args);
     free(copy);
     return new_args;
 }
@@ -249,17 +214,13 @@ void free_args(char **args) {
     printf("free_args called\n");
     if (!args) return;
     for (int i = 0; args[i] != NULL; i++) {
-        printf("freeing arg %d: %s\n", i, args[i]);
-        if (args[i] == NULL) {
-            fprintf(stderr, "free_args: NULL pointer at index %d\n", i);
-        } else {
-            free(args[i]);
-        }
+        free(args[i]);
     }
     free(args);
 }
 
 void free_args_array_only(char **args) {
+    printf("free_args_array_only called\n");
     if (!args) return;
     free(args);
 }
@@ -274,27 +235,20 @@ void load_aliases_from_sshlrc() {
 
     char line[1024];
     while (fgets(line, sizeof(line), f)) {
-        // Skip comments and empty lines
         if (line[0] == '#' || line[0] == '\n') continue;
-        // Check if line starts with "alias "
         if (strncmp(line, "alias ", 6) == 0) {
             char *alias_def = line + 6;
-            // Parse alias name and command separated by space
             char *name = strtok(alias_def, " \t\r\n");
             char *command = strtok(NULL, "\r\n");
             if (!name || !command) continue;
-            // Remove trailing newline from command if present
             size_t len = strlen(command);
             if (len > 0 && command[len - 1] == '\n') {
                 command[len - 1] = '\0';
             }
             printf("Loading alias: %s='%s'\n", name, command);
             add_alias(name, command);
-        }
-        // Check if line starts with "PS1="
-        else if (strncmp(line, "PS1=", 4) == 0) {
+        } else if (strncmp(line, "PS1=", 4) == 0) {
             char *ps1_val = line + 4;
-            // Remove trailing newline
             size_t len = strlen(ps1_val);
             if (len > 0 && ps1_val[len - 1] == '\n') {
                 ps1_val[len - 1] = '\0';
