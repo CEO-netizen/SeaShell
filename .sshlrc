@@ -1,0 +1,14 @@
+# SeaShell configuration file
+alias lh ls --all
+alias ll ls -l
+alias la ls -a
+alias gs git status
+alias gc git commit
+alias gp git push
+alias gd git diff
+alias .. cd ..
+alias ... cd ../..
+alias h history
+alias c clear
+alias e exit
+# Add your shell options here
