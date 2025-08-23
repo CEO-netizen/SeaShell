@@ -2,6 +2,8 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Werror -std=c11 -Iinclude
 LDFLAGS = -lncurses
 TARGET = seashell
+DATE = 8.23.25
+VERSION = 1.3.0
 SRC = src/main.c \
       src/loop/loop.c \
       src/loop/parser.c \
@@ -16,5 +18,10 @@ $(TARGET): $(SRC)
 
 clean:
 	rm -f $(TARGET)
+sign:
+	gpg --output seashell.sig --detach-sig seashell
 
+package:
+	tar -cvf SeaShell-$(VERSION)-$(DATE).tar.xz $(TARGET) $(TARGET).sig
+	rm $(TARGET) $(TARGET).sig
 .PHONY: all clean
